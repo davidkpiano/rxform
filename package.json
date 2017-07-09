@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "description": "",
   "keywords": [],
-  "main": "dist/rxform.umd.js",
-  "module": "dist/rxform.es5.js",
-  "typings": "dist/types/rxform.d.ts",
+  "main": "dist/RxForm.umd.js",
+  "module": "dist/RxForm.es5.js",
+  "typings": "dist/types/RxForm.d.ts",
   "files": [
     "dist"
   ],
@@ -101,5 +101,9 @@
     "typedoc": "^0.7.1",
     "typescript": "^2.3.4",
     "validate-commit-msg": "^2.12.2"
+  },
+  "dependencies": {
+    "mitt": "^1.1.2",
+    "rxjs": "^5.4.2"
   }
 }

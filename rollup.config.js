@@ -4,15 +4,22 @@ import sourceMaps from 'rollup-plugin-sourcemaps'
 const pkg = require('./package.json')
 const camelCase = require('lodash.camelcase')
 
-const libraryName = 'rxform'
+const libraryName = 'RxForm'
 
 export default {
-  entry: `compiled/${libraryName}.js`,
+  entry: `compiled/RxForm.js`,
   targets: [
-	  { dest: pkg.main, moduleName: camelCase(libraryName), format: 'umd' },
+	  { dest: pkg.main, moduleName: libraryName, format: 'umd' },
 	  { dest: pkg.module, format: 'es' }
   ],
   sourceMap: true,
+  onwarn: function(warning) {
+    if (warning.code === 'THIS_IS_UNDEFINED') {
+      return;
+    }
+
+    console.error(warning.message);
+  },
   // Indicate here external modules you don't wanna include in your bundle (i.e.: 'lodash')
   external: [],
   plugins: [
