@@ -137,7 +137,9 @@ export class FieldState {
       })
 
       Object.keys(newValue).forEach(key => {
-        if ((updates as IFormUpdates)[key]) return // already visited
+        if ((updates as IFormUpdates)[key]) {
+          return // already visited
+        }
 
         ;(updates as IFormUpdates)[key] = "CREATE"
         updated = true
