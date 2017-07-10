@@ -3,8 +3,9 @@ import { isObjectLike } from "./utils/isPlainObject"
 import { Observable } from "rxjs/Observable"
 import "rxjs/add/observable/combineLatest"
 import { Subject } from "rxjs/Subject"
+import createGetter, { Getter } from "./utils/createGetter"
 
-export interface IFieldState {
+export interface IField {
   model: string
   focus: boolean
   pending: boolean
@@ -21,7 +22,7 @@ export interface IFieldState {
   value: any
 }
 
-const initialFieldState = {
+const initialField = {
   focus: false,
   pending: false,
   pristine: true,
@@ -36,7 +37,7 @@ const initialFieldState = {
   errors: {}
 }
 
-function getProp(field: FieldState | Form, prop: keyof IFieldState): any {
+function getProp(field: Field | Form, prop: keyof IField): any {
   if (field instanceof Form) {
     return field.form[prop]
   }
@@ -49,43 +50,40 @@ export type Validity = boolean | ValidityMap
 
 export default function isValidityValid(validity: Validity): boolean {
   if (isObjectLike(validity)) {
-    return Object.keys(validity).every(key =>
-      isValidityValid((validity as ValidityMap)[key])
-    )
+    return Object.keys(validity).every(key => {
+      console.log(key)
+      return isValidityValid((validity as ValidityMap)[key])
+    })
   }
 
   return !!validity
 }
 
-export class FieldState {
+export class Field {
   public model: string
   public retouched: boolean
   public validated: boolean
   public errors: boolean | { [key: string]: boolean }
   public initialValue: any
 
-  public state$: Subject<IFieldState>
-  public state: IFieldState
+  public state$: Subject<IField>
+  public state: IField
   private parent: Form | undefined
   private children: IFields | undefined
 
   constructor(
     parent: Form | undefined,
-    children: IFields | undefined,
+    form: Form,
     model: string,
     value: any,
-    customInitialFieldState?: IFieldState
+    customInitialField?: IField
   ) {
     this.parent = parent
-    this.children = children
-    this.state$ = new Subject<IFieldState>()
+    this.children = form.fields
+    this.state$ = new Subject<IField>()
 
-    const fieldState = Object.assign(
-      {},
-      initialFieldState,
-      customInitialFieldState
-    )
-    this.state = Object.assign(fieldState, {
+    const field = Object.assign({}, initialField, customInitialField)
+    this.state = Object.assign(field, {
       model,
       value,
       initialValue: value
@@ -157,10 +155,7 @@ export class FieldState {
     return updates
   }
 
-  public every(
-    iteratee: (field: FieldState) => boolean,
-    some?: boolean
-  ): boolean {
+  public every(iteratee: (field: Field) => boolean, some?: boolean): boolean {
     const { children } = this
 
     if (!children) {
@@ -180,17 +175,17 @@ export class FieldState {
     })
   }
 
-  public some(iteratee: (field: FieldState) => boolean): boolean {
+  public some(iteratee: (field: Field) => boolean): boolean {
     return this.every(iteratee, true)
   }
 
-  private set(props: Partial<IFieldState>): void {
+  private set(props: Partial<IField>): void {
     this.state = { ...this.state, ...props }
 
     this.state$.next(this.state)
   }
 
-  private setParent(props: { [key in keyof FieldState]?: any }): void {
+  private setParent(props: { [key in keyof Field]?: any }): void {
     if (!this.parent) return
 
     Object.assign(this.parent.form, props)
@@ -335,9 +330,13 @@ export class FieldState {
   }
 
   get valid(): boolean {
-    return (
-      isValidityValid(this.state.validity) && this.every(field => field.valid)
-    )
+    const fieldValid = isValidityValid(this.state.validity)
+
+    if (!this.children) {
+      return fieldValid
+    }
+
+    return fieldValid && this.every(field => field.valid)
   }
 
   get value(): any {
@@ -355,44 +354,53 @@ export interface IFormUpdates {
   [key: string]: FormUpdate | IFormUpdates
 }
 
+export interface IFieldMap {
+  $form: Field
+  [key: string]: Field | IFieldMap
+}
+
 export class Form {
-  public form: FieldState
+  public form: Field
   public fields: IFields | undefined
 
   constructor(
     parent: Form | undefined,
     model: string,
     value: any,
-    customInitialFieldState?: IFieldState
+    customInitialField?: IField
   ) {
     if (isObjectLike(value)) {
       this.fields = mapValues(value, (subValue, key) => {
-        const subModel = `${model}.${key}`
-
-        return new Form(this, subModel, subValue, customInitialFieldState)
+        return new Form(this, key, subValue, customInitialField)
       })
     }
 
-    this.form = new FieldState(
-      parent,
-      this.fields,
-      model,
-      value,
-      customInitialFieldState
-    )
-  }
-}
-
-function formOrField(
-  parent: Form,
-  children: IFields | undefined,
-  model: string,
-  value: any,
-  customInitialFieldState?: IFieldState
-): Form | FieldState {
-  if (isObjectLike(value)) {
-    return new Form(parent, model, value, customInitialFieldState)
+    this.form = new Field(parent, this, model, value, customInitialField)
   }
 
-  return new FieldState(parent, children, model, value, customInitialFieldState)
+  get fieldMap(): IFieldMap {
+    const fieldMap: IFieldMap = {
+      $form: this.form
+    }
+    const { fields } = this
+
+    if (!fields) {
+      return fieldMap
+    }
+
+    Object.keys(fields as IFields).forEach(key => {
+      fieldMap[key] = fields[key].fieldMap
+    })
+
+    return fieldMap
+  }
+
+  public get(model: Getter<Field>): Field {
+    const getter =
+      typeof model === "function" ? model : createGetter<Field>(model)
+
+    const fieldMap = getter(this.fieldMap)
+
+    return fieldMap.$form
+  }
 }
